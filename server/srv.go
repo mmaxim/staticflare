@@ -34,7 +34,6 @@ func (s *Server) handleInfo(w http.ResponseWriter, req *http.Request) {
 		s.Debug("handleInfo: failed to write response: %s", err)
 		return
 	}
-	s.Debug("handleInfo(): ret: %s", string(b))
 }
 
 func (s *Server) Run() error {

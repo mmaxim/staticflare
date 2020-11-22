@@ -23,6 +23,23 @@ func NewRunner(name, domain string, remoteIPSource RemoteIPSource, dnsProvider D
 	}
 }
 
+func (r *Runner) runOnce(lastIP string) (res string) {
+	ip, err := r.remoteIPSource.GetRemoteIP()
+	if err != nil {
+		r.Debug("runOnce: failed to get IP: %s", err)
+		return lastIP
+	}
+	if lastIP != ip {
+		r.Debug("runOnce: ip update: %s.%s: %s -> %s", r.name, r.domain, lastIP, ip)
+		if err := r.dnsProvider.SetDNS(r.name, r.domain, ip); err != nil {
+			r.Debug("runOnce: failed to update: %s", err)
+			return lastIP
+		}
+		return ip
+	}
+	return lastIP
+}
+
 func (r *Runner) Run() {
 	lastIP, err := r.dnsProvider.GetDNS(r.name, r.domain)
 	if err != nil {
@@ -30,12 +47,7 @@ func (r *Runner) Run() {
 		return
 	}
 	for {
-		ip, err := r.remoteIPSource.GetRemoteIP()
-		if err != nil {
-			r.Debug("Run: failed to get IP: %s", err)
-		} else {
-			r.Debug("Run: ip: %s lastIP: %s", ip, lastIP)
-		}
+		lastIP = r.runOnce(lastIP)
 		time.Sleep(time.Second)
 	}
 }

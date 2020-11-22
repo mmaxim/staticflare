@@ -51,7 +51,6 @@ func (c *CloudFlareDNSProvider) getDNSRecord(name, domain string) (res cloudflar
 	if err != nil {
 		return res, err
 	}
-	c.Debug("getDNSRecord: using zoneID: %s", zoneID)
 	recs, err := c.api.DNSRecords(zoneID, cloudflare.DNSRecord{})
 	if err != nil {
 		c.Debug("getDNSRecord: failed to get records: %s", err)
