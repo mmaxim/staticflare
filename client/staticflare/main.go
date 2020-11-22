@@ -52,13 +52,14 @@ func config() (opts Options) {
 
 func main() {
 	opts := config()
+	fullDNS := opts.Name + "." + opts.Domain
 
 	// setup stats
 	var statsProvider common.StatsProvider
 	statsProvider = common.NewDummyStatsProvider()
 	if opts.StathatEZKey != "" {
 		log.Printf("StatHat EZ key provided\n")
-		statsProvider = common.NewStathatStatsProvider("staticflared", opts.StathatEZKey)
+		statsProvider = common.NewStathatStatsProvider("staticflared - "+fullDNS, opts.StathatEZKey)
 	}
 
 	// set up staticflared interface
