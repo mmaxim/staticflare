@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"mmaxim.org/staticflare/client"
+	"mmaxim.org/staticflare/common"
 )
 
 type Options struct {
@@ -15,6 +16,7 @@ type Options struct {
 	RemoteIPSourceURL string
 	CloudFlareEmail   string
 	CloudFlareAPIKey  string
+	StathatEZKey      string
 }
 
 func (o Options) check() {
@@ -41,6 +43,8 @@ func config() (opts Options) {
 		"CloudFlare account email")
 	flag.StringVar(&opts.CloudFlareAPIKey, "cfapikey", os.Getenv("STATICFLARE_CFAPIKEY"),
 		"CloudFlare API Key")
+	flag.StringVar(&opts.StathatEZKey, "stathatezkey", os.Getenv("STATICFLARE_STATHATEZKEY"),
+		"StatHat EZ Key")
 	flag.Parse()
 	opts.check()
 	return opts
@@ -48,8 +52,18 @@ func config() (opts Options) {
 
 func main() {
 	opts := config()
+
+	// setup stats
+	var statsProvider common.StatsProvider
+	statsProvider = common.NewDummyStatsProvider()
+	if opts.StathatEZKey != "" {
+		log.Printf("StatHat EZ key provided\n")
+		statsProvider = common.NewStathatStatsProvider("staticflared", opts.StathatEZKey)
+	}
+
+	// set up staticflared interface
 	remoteIPSource := client.NewHTTPRemoteSource(opts.RemoteIPSourceURL,
-		client.NewStaticFlaredHandler())
+		client.NewStaticFlaredHandler(), statsProvider)
 	dnsProvider := client.NewCloudFlareDNSProvider()
 
 	// set up CF
@@ -57,6 +71,6 @@ func main() {
 		log.Fatalf("failed to Init CloudFlare DNS provider: %s\n", err)
 	}
 
-	runner := client.NewRunner(opts.Name, opts.Domain, remoteIPSource, dnsProvider)
+	runner := client.NewRunner(opts.Name, opts.Domain, remoteIPSource, dnsProvider, statsProvider)
 	runner.Run()
 }

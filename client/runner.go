@@ -11,27 +11,34 @@ type Runner struct {
 	name, domain   string
 	remoteIPSource RemoteIPSource
 	dnsProvider    DNSProvider
+	stats          common.StatsProvider
 }
 
-func NewRunner(name, domain string, remoteIPSource RemoteIPSource, dnsProvider DNSProvider) *Runner {
+func NewRunner(name, domain string, remoteIPSource RemoteIPSource, dnsProvider DNSProvider,
+	stats common.StatsProvider) *Runner {
 	return &Runner{
 		DebugLabeler:   common.NewDebugLabeler("Runner"),
 		name:           name,
 		domain:         domain,
 		remoteIPSource: remoteIPSource,
 		dnsProvider:    dnsProvider,
+		stats:          stats.SetPrefix("Runner"),
 	}
 }
 
 func (r *Runner) runOnce(lastIP string) (res string) {
+	r.stats.CountOne("runOnce")
 	ip, err := r.remoteIPSource.GetRemoteIP()
 	if err != nil {
+		r.stats.CountOne("runOnce - error")
 		r.Debug("runOnce: failed to get IP: %s", err)
 		return lastIP
 	}
 	if lastIP != ip {
+		r.stats.CountOne("runOnce - update")
 		r.Debug("runOnce: ip update: %s.%s: %s -> %s", r.name, r.domain, lastIP, ip)
 		if err := r.dnsProvider.SetDNS(r.name, r.domain, ip); err != nil {
+			r.stats.CountOne("runOnce - dns error")
 			r.Debug("runOnce: failed to update: %s", err)
 			return lastIP
 		}
