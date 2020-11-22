@@ -2,36 +2,39 @@ package server
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
+
+	"mmaxim.org/staticflare/common"
 )
 
 type Server struct {
+	*common.DebugLabeler
 	addr string
 }
 
 func NewServer(addr string) *Server {
 	return &Server{
-		addr: addr,
+		DebugLabeler: common.NewDebugLabeler("Server"),
+		addr:         addr,
 	}
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, req *http.Request) {
 	ip := strings.Split(req.RemoteAddr, ":")[0]
-	ret := infoResponse{
+	ret := common.InfoResponse{
 		RemoteIP: ip,
 	}
 	b, err := json.Marshal(ret)
 	if err != nil {
-		log.Printf("handleInfo: failed to marshal response: %s\n", err)
+		s.Debug("handleInfo: failed to marshal response: %s", err)
 		return
 	}
 	if _, err := w.Write(b); err != nil {
-		log.Printf("handleInfo: failed to write response: %s\n", err)
+		s.Debug("handleInfo: failed to write response: %s", err)
 		return
 	}
-	log.Printf("handleInfo(): ret: %s\n", string(b))
+	s.Debug("handleInfo(): ret: %s", string(b))
 }
 
 func (s *Server) Run() error {
@@ -41,6 +44,6 @@ func (s *Server) Run() error {
 		Addr:    s.addr,
 		Handler: mux,
 	}
-	log.Printf("starting up on: %s\n", s.addr)
+	s.Debug("starting up on: %s", s.addr)
 	return srv.ListenAndServe()
 }
