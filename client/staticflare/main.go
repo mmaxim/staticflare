@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
@@ -30,21 +29,23 @@ func (o Options) check() {
 }
 
 func usage() {
-	fmt.Printf("usage: staticflare <--name name_arg> <--domain domain_arg> <--ipurl ipurl_arg> <--cfemail cfemail_arg> <--cfapikey cfapikey_arg>\n")
+	flag.Usage()
 	os.Exit(3)
 }
 
 func config() (opts Options) {
-	flag.StringVar(&opts.Name, "name", os.Getenv("STATICFLARE_NAME"), "subdomain to set on the domain")
-	flag.StringVar(&opts.Domain, "domain", os.Getenv("STATICFLARE_DOMAIN"), "DNS domain")
+	flag.StringVar(&opts.Name, "name", os.Getenv("STATICFLARE_NAME"),
+		"(required) subdomain to set on the domain (STATICFLARE_NAME env)")
+	flag.StringVar(&opts.Domain, "domain", os.Getenv("STATICFLARE_DOMAIN"),
+		"(required) DNS domain (STATICFLARE_DOMAIN env)")
 	flag.StringVar(&opts.RemoteIPSourceURL, "ipurl", os.Getenv("STATICFLARE_IPURL"),
-		"URL for getting WAN IP")
+		"(required) URL for getting WAN IP from staticflared (STATICFLARE_DOMAIN env)")
 	flag.StringVar(&opts.CloudFlareEmail, "cfemail", os.Getenv("STATICFLARE_CFEMAIL"),
-		"CloudFlare account email")
+		"(required) CloudFlare account email (STATICFLARE_CFEMAIL env)")
 	flag.StringVar(&opts.CloudFlareAPIKey, "cfapikey", os.Getenv("STATICFLARE_CFAPIKEY"),
-		"CloudFlare API Key")
+		"(required) CloudFlare API Key (STATICFLARE_CFAPIKEY env)")
 	flag.StringVar(&opts.StathatEZKey, "stathatezkey", os.Getenv("STATICFLARE_STATHATEZKEY"),
-		"StatHat EZ Key")
+		"(optional) StatHat EZ Key (STATICFLARE_STATHATEZKEY env)")
 	flag.Parse()
 	opts.check()
 	return opts
