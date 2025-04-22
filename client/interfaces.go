@@ -1,8 +1,10 @@
 package client
 
+import "context"
+
 type DNSProvider interface {
-	GetDNS(name, domain string) (string, error)
-	SetDNS(name, domain, ip string) error
+	GetDNS(ctx context.Context, name, domain string) (string, error)
+	SetDNS(ctx context.Context, name, domain, ip string) error
 }
 
 type RemoteIPSource interface {

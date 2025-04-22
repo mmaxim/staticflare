@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"time"
 
 	"mmaxim.org/staticflare/common"
@@ -26,7 +27,7 @@ func NewRunner(name, domain string, remoteIPSource RemoteIPSource, dnsProvider D
 	}
 }
 
-func (r *Runner) runOnce(lastIP string) (res string) {
+func (r *Runner) runOnce(ctx context.Context, lastIP string) (res string) {
 	r.stats.CountOne("runOnce")
 	ip, err := r.remoteIPSource.GetRemoteIP()
 	if err != nil {
@@ -37,7 +38,7 @@ func (r *Runner) runOnce(lastIP string) (res string) {
 	if lastIP != ip {
 		r.stats.CountOne("runOnce - update")
 		r.Debug("runOnce: ip update: %s.%s: %s -> %s", r.name, r.domain, lastIP, ip)
-		if err := r.dnsProvider.SetDNS(r.name, r.domain, ip); err != nil {
+		if err := r.dnsProvider.SetDNS(ctx, r.name, r.domain, ip); err != nil {
 			r.stats.CountOne("runOnce - dns error")
 			r.Debug("runOnce: failed to update: %s", err)
 			return lastIP
@@ -48,13 +49,14 @@ func (r *Runner) runOnce(lastIP string) (res string) {
 }
 
 func (r *Runner) Run() {
-	lastIP, err := r.dnsProvider.GetDNS(r.name, r.domain)
+	ctx := context.Background()
+	lastIP, err := r.dnsProvider.GetDNS(ctx, r.name, r.domain)
 	if err != nil {
 		r.Debug("Run: failed to get initial IP: %s", err)
 		return
 	}
 	for {
-		lastIP = r.runOnce(lastIP)
+		lastIP = r.runOnce(ctx, lastIP)
 		time.Sleep(time.Second)
 	}
 }

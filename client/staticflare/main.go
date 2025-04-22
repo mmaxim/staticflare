@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
@@ -69,7 +70,7 @@ func main() {
 	dnsProvider := client.NewCloudFlareDNSProvider()
 
 	// set up CF
-	if err := dnsProvider.Init(opts.CloudFlareEmail, opts.CloudFlareAPIKey); err != nil {
+	if err := dnsProvider.Init(context.Background(), opts.CloudFlareEmail, opts.CloudFlareAPIKey); err != nil {
 		log.Fatalf("failed to Init CloudFlare DNS provider: %s\n", err)
 	}
 

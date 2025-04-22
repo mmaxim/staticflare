@@ -1,15 +1,20 @@
 package client
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
-	"github.com/cloudflare/cloudflare-go"
+	"github.com/cloudflare/cloudflare-go/v4"
+	"github.com/cloudflare/cloudflare-go/v4/dns"
+	"github.com/cloudflare/cloudflare-go/v4/option"
+	"github.com/cloudflare/cloudflare-go/v4/zones"
 	"mmaxim.org/staticflare/common"
 )
 
 type CloudFlareDNSProvider struct {
 	*common.DebugLabeler
-	api     *cloudflare.API
+	api     *cloudflare.Client
 	zoneIDs map[string]string
 }
 
@@ -20,67 +25,73 @@ func NewCloudFlareDNSProvider() *CloudFlareDNSProvider {
 	}
 }
 
-func (c *CloudFlareDNSProvider) Init(email, token string) error {
-	api, err := cloudflare.New(token, email)
-	if err != nil {
-		return err
-	}
-	c.api = api
-	zones, err := c.api.ListZones()
-	if err != nil {
-		c.Debug("Init: failed to list zones: %s", err)
-		return err
-	}
-	for _, zone := range zones {
-		c.zoneIDs[zone.Name] = zone.ID
-		c.Debug("Init: id: %s -> %s", zone.Name, zone.ID)
-	}
+func (c *CloudFlareDNSProvider) Init(ctx context.Context, email, token string) error {
+	c.api = cloudflare.NewClient(option.WithAPIKey(token), option.WithAPIEmail(email))
 	return nil
 }
 
-func (c *CloudFlareDNSProvider) getZoneID(domain string) (string, error) {
-	zoneID, ok := c.zoneIDs[domain]
-	if !ok {
-		return zoneID, fmt.Errorf("unknown domain: %s", domain)
+func (c *CloudFlareDNSProvider) getZoneID(ctx context.Context, domain string) (string, error) {
+	c.Debug("CF: getZoneID: domain: %s", domain)
+	zones, err := c.api.Zones.List(ctx, zones.ZoneListParams{
+		Name: cloudflare.F(domain),
+	})
+	if err != nil {
+		return "", err
 	}
-	return zoneID, nil
+	if len(zones.Result) == 0 {
+		return "", errors.New("not zone for domain")
+	}
+	return zones.Result[0].ID, nil
 }
 
-func (c *CloudFlareDNSProvider) getDNSRecord(name, domain string) (res cloudflare.DNSRecord, err error) {
-	zoneID, err := c.getZoneID(domain)
+func (c *CloudFlareDNSProvider) SetDNS(ctx context.Context, name, domain, ip string) error {
+	c.Debug("CF: SetDNS: setting DNS record: name: %s domain: %s ip: %s", name, domain, ip)
+	rec, zoneID, err := c.getDNSRecord(ctx, name, domain)
 	if err != nil {
-		return res, err
-	}
-	recs, err := c.api.DNSRecords(zoneID, cloudflare.DNSRecord{})
-	if err != nil {
-		c.Debug("getDNSRecord: failed to get records: %s", err)
-		return res, err
-	}
-	recname := name + "." + domain
-	for _, rec := range recs {
-		if rec.Name == recname {
-			return rec, nil
-		}
-	}
-	return res, fmt.Errorf("failed to get DNS record for name: %s domain: %s", name, domain)
-}
-
-func (c *CloudFlareDNSProvider) SetDNS(name, domain, ip string) error {
-	rec, err := c.getDNSRecord(name, domain)
-	if err != nil {
-		c.Debug("SetDNS: failed to get DNS record: %s", err)
 		return err
 	}
-	rec.Content = ip
-	if err := c.api.UpdateDNSRecord(rec.ZoneID, rec.ID, rec); err != nil {
-		c.Debug("SetDNS: failed to update: %s", err)
+	updateParams := dns.RecordUpdateParams{
+		ZoneID: cloudflare.F(zoneID),
+		Record: dns.ARecordParam{
+			Content: cloudflare.F(ip),
+			Name:    cloudflare.F(name),
+			Type:    cloudflare.F(dns.ARecordTypeA),
+		},
+	}
+	c.Debug("CF: SetDNS: performing update")
+	if _, err = c.api.DNS.Records.Update(ctx, rec.ID, updateParams); err != nil {
 		return err
 	}
+	c.Debug("CF: SetDNS: success")
 	return nil
 }
 
-func (c *CloudFlareDNSProvider) GetDNS(name, domain string) (res string, err error) {
-	rec, err := c.getDNSRecord(name, domain)
+func (c *CloudFlareDNSProvider) getDNSRecord(ctx context.Context, name, domain string) (res dns.RecordResponse, zoneID string, err error) {
+	c.Debug("CF: getDNSRecord: fetching DNS record: name: %s domain: %s", name, domain)
+	if zoneID, err = c.getZoneID(ctx, domain); err != nil {
+		return res, zoneID, err
+	}
+	c.Debug("CF: getDNSRecord: zoneID: %s", zoneID)
+	lres, err := c.api.DNS.Records.List(ctx, dns.RecordListParams{
+		ZoneID: cloudflare.F(zoneID),
+		Name: cloudflare.F(dns.RecordListParamsName{
+			Exact: cloudflare.F(name + "." + domain),
+		}),
+	})
+	if err != nil {
+		return res, zoneID, err
+	}
+	if len(lres.Result) == 0 {
+		return res, zoneID, fmt.Errorf("no records found: name: %s domain: %s", name, domain)
+	}
+	res = lres.Result[0]
+	c.Debug("CF: getDNSRecord: found: content: %s", res.Content)
+	return res, zoneID, nil
+}
+
+func (c *CloudFlareDNSProvider) GetDNS(ctx context.Context, name, domain string) (res string, err error) {
+	c.Debug("CF: GetDNS: fetching DNS record: name: %s domain: %s", name, domain)
+	rec, _, err := c.getDNSRecord(ctx, name, domain)
 	if err != nil {
 		return res, err
 	}
